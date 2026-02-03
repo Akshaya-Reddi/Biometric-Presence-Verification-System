@@ -8,6 +8,7 @@ import numpy as np
 from keras_facenet import FaceNet
 import datetime
 from vector_db import add_identity, search_identity
+from liveness_detector import check_liveness
 
 app = FastAPI()
 detector = MTCNN()
@@ -47,65 +48,6 @@ def is_blurry(image, threshold=30):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     variance = cv2.Laplacian(gray, cv2.CV_64F).var()
     return variance < threshold
-
-def generate_embedding(image):
-
-    # Resize for stable detection
-    image_resized = cv2.resize(image, (320, 320))
-
-    try:
-        results = detector.detect_faces(image_resized)
-    except Exception as e:
-        print(f"[MTCNN ERROR] → {e}")
-        return None
-
-    if len(results) != 1:
-        print("[VERIFY] Face count not equal to 1")
-        return None
-
-    face = results[0]
-
-    if face['confidence'] < 0.85:
-        print("[VERIFY] Low confidence face")
-        return None
-
-    x, y, w, h = face['box']
-
-    # Clamp bounding box
-    img_h, img_w, _ = image_resized.shape
-    x = max(0, x)
-    y = max(0, y)
-    w = min(w, img_w - x)
-    h = min(h, img_h - y)
-
-    if w <= 0 or h <= 0:
-        return None
-
-    # Crop face
-    face_img = image_resized[y:y+h, x:x+w]
-
-    if face_img.size == 0:
-        return None
-
-    # Resize for FaceNet
-    face_img = cv2.resize(face_img, (160, 160))
-
-    # Convert to RGB
-    face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
-
-    # Generate embedding
-    embedding = embedder.embeddings([face_img])
-    embedding = np.array(embedding).squeeze()
-
-    # Validate shape
-    if embedding.ndim != 1 or embedding.shape[0] != 512:
-        print("[VERIFY] Invalid embedding shape")
-        return None
-
-    # Normalize
-    embedding = embedding / np.linalg.norm(embedding)
-
-    return embedding
 
 def filter_good_frames(video_id: str):
     raw_dir = os.path.join("uploads", "frames", video_id)
@@ -485,6 +427,7 @@ async def test_search(video: UploadFile = File(...)):
 @app.post("/attendance/verify")
 async def verify_attendance(video: UploadFile = File(...)):
 
+    #Save video
     file_id = str(uuid.uuid4())
     video_path = os.path.join(UPLOAD_DIR, f"verify_{file_id}.mp4")
 
@@ -492,6 +435,7 @@ async def verify_attendance(video: UploadFile = File(...)):
     with open(video_path, "wb") as buffer:
         shutil.copyfileobj(video.file, buffer)
 
+    #Read frames
     cap = cv2.VideoCapture(video_path)
 
     frames = []
@@ -516,6 +460,20 @@ async def verify_attendance(video: UploadFile = File(...)):
     if len(frames) == 0:
         return {"status": "failed", "message": "No valid frames captured"}
 
+    #Liveness detection (multiframe)
+    live_scores = []
+    for f in frames:
+        is_live, score = check_liveness(f)
+        if is_live:
+            live_scores.append(score)
+
+    if not live_scores or np.mean(live_scores) < 0.5:
+        return{
+            "status": "spoof_detected",
+            "liveness_score": float(np.mean(live_scores)) if live_scores else 0.0
+        }
+    
+    #Identity verification
     # Multi-frame biometric verification
     user_id, stability, confidence = verify_multi_frame(frames)
 
