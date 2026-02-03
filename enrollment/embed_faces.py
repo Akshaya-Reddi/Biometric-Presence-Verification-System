@@ -47,5 +47,5 @@ def process_good_frames(video_id: str):
 
 
 if __name__ == "__main__":
-    VIDEO_ID = "1cf5e950-d656-4e5f-9e9a-bfcd926d742c"
+    VIDEO_ID = "1f8b97f0-446c-4206-8718-68466dce9ce9"
     process_good_frames(VIDEO_ID)

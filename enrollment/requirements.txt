@@ -2,3 +2,8 @@ fastapi
 uvicorn
 python-multipart
 opencv-python-headless
+mtcnn
+faiss-cpu
+torch torchvision
+imutils
+pillow
