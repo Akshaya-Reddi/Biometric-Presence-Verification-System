@@ -1,0 +1,4 @@
+cryptography
+sqlalchemy
+python-multipart
+faiss-cpu
