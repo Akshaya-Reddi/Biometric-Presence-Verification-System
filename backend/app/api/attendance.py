@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database.deps import get_db
 from app.services.attendance_service import decide_attendance
 from app.repositories.attendance_repo import create_attendance
+from app.models.attendance import AttendanceStatus
 
 router = APIRouter()
 

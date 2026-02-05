@@ -1,82 +1,47 @@
-import uuid
-from sqlalchemy.exc import IntegrityError
-from backend.app.database.session import SessionLocal
-from backend.app.models.attendance import Attendance
-from backend.app.models.audit_log import AuditLog
-
 from sqlalchemy.orm import Session
 from app.models.attendance import Attendance, AttendanceStatus
-from app.services.duplicate_guard import already_marked
-from app.services.thresholds import (
-    FACE_MATCH_THRESHOLD,
-    LIVENESS_THRESHOLD,
-    STABILITY_THRESHOLD
-)
 
-def mark_attendance(user_id: str, session_id: str, method="biometric"):
-    db = SessionLocal()
 
-    try:
-        attendance = Attendance(
-            id=str(uuid.uuid4()),
-            user_id=user_id,
-            session_id=session_id,
-            method=method
+def already_marked(db: Session, user_id, session_id) -> bool:
+    record = (
+        db.query(Attendance)
+        .filter(
+            Attendance.user_id == user_id,
+            Attendance.session_id == session_id,
+            Attendance.status == AttendanceStatus.PRESENT
         )
+        .first()
+    )
+    return record is not None
 
-        db.add(attendance)
-
-        audit = AuditLog(
-            id=str(uuid.uuid4()),
-            actor_id=user_id,
-            action="ATTENDANCE_MARKED",
-            details=f"Session={session_id}, method={method}"
-        )
-        db.add(audit)
-
-        db.commit()
-
-        return {
-            "status": "marked",
-            "user_id": user_id,
-            "session_id": session_id
-        }
-
-    except IntegrityError:
-        db.rollback()
-        return {
-            "status": "already_marked",
-            "user_id": user_id,
-            "session_id": session_id
-        }
-
-    finally:
-        db.close()
 
 def decide_attendance(
     db: Session,
-    *,
-    user_id,
-    session_id,
+    user_id: str,
+    session_id: str,
     match_confidence: float,
     liveness_score: float,
     stability_score: float
 ):
-    # 1️Duplicate check
+    # Thresholds (can later move to config)
+    FACE_THRESHOLD = 0.80
+    LIVENESS_THRESHOLD = 0.70
+    STABILITY_THRESHOLD = 0.60
+
+    # Duplicate check
     if already_marked(db, user_id, session_id):
-        return AttendanceStatus.DUPLICATE, "Already marked present"
+        return AttendanceStatus.REJECTED, "Duplicate attendance"
 
-    # 2️Liveness gate
+    # Face match check
+    if match_confidence < FACE_THRESHOLD:
+        return AttendanceStatus.REJECTED, "Face match too low"
+
+    # Liveness check
     if liveness_score < LIVENESS_THRESHOLD:
-        return AttendanceStatus.REJECTED, "Liveness failed"
+        return AttendanceStatus.REJECTED, "Liveness check failed"
 
-    # 3️Face match gate
-    if match_confidence < FACE_MATCH_THRESHOLD:
-        return AttendanceStatus.REJECTED, "Face mismatch"
-
-    # 4️Stability gate
+    # Stability check
     if stability_score < STABILITY_THRESHOLD:
-        return AttendanceStatus.REJECTED, "Low stability"
+        return AttendanceStatus.REJECTED, "Device not stable"
 
-    # Passed all checks
-    return AttendanceStatus.PRESENT, "Attendance confirmed"
+    return AttendanceStatus.PRESENT, "Attendance marked successfully"
