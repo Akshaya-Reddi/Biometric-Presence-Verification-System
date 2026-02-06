@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.database.base import Base
+from app.database.base_class import Base
 
 DATABASE_URL = "sqlite:///./biometric.db"
 

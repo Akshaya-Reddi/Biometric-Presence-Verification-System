@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import Column, ForeignKey, Enum, Float, DateTime, Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from app.database.base import Base
+from app.database.base_class import Base
 
 class AttendanceStatus(enum.Enum):
     PRESENT = "present"

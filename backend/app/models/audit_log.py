@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import Column, ForeignKey, String, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from app.database.base import Base
+from app.database.base_class import Base
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

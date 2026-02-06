@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import Column, ForeignKey, LargeBinary, Float, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from app.database.base import Base
+from app.database.base_class import Base
 
 class FaceEmbedding(Base):
     __tablename__ = "face_embeddings"
