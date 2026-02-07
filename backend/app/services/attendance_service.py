@@ -4,6 +4,9 @@ from app.services.audit_service import log_event
 from app.services.thresholds import LIVENESS_THRESHOLD, FACE_MATCH_THRESHOLD, STABILITY_THRESHOLD
 from app.services.replay_guard import replay_protection
 
+from app.repositories.confidence_repo import log_confidence
+from app.services.drift_service import detect_confidence_drift
+
 from app.services.calibration import (
     adaptive_face_threshold,
     adaptive_liveness_threshold,
@@ -66,6 +69,24 @@ def decide_attendance(
         stability_score
     )
     
+    # Log success
     log_event(db, attendance_id, "SUCCESS", "Attendance confirmed")
 
+    # Log confidence history
+    log_confidence(db, user_id, match_confidence)
+
+    # Detect drift
+    drift_detected, drift_value = detect_confidence_drift(db, user_id)
+
+    if drift_detected:
+        log_event(
+            db,
+            attendance_id,
+            "CONFIDENCE_DRIFT",
+            f"Confidence drift detected: {drift_value:.3f}"
+        )
+
     return AttendanceStatus.PRESENT, f"Attendance confirmed (confidence={confidence_score:.2f})"
+
+
+    
